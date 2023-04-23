@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request_target:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - ".github/CODEOWNERS"
+      - ".github/FUNDING.yml"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".vscode/**"
+      - "LICENSE"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🚪
+        uses: actions/checkout@v3
+
+      - name: Setup node 🍀
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'yarn'
+
+      - name: Cache Playwright 📦
+        id: cache-playwright
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ${{ github.workspace }}/node_modules/playwright
+          key: cache-playwright-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: cache-playwright-
+
+      - name: Install dependencies 📦
+        run: yarn install --frozen-lockfile
+
+      - name: Install Playwright browsers 🕹️
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
+        run: yarn playwright install
+
+      - name: GraphQL Codegen 🕸
+        run: yarn codegen
+
+      - name: Typecheck 🔡
+        run: yarn typecheck
+
+      - name: Lint 🪩
+        run: yarn lint
+
+      - name: Prettier ✨
+        run: yarn prettier
+
+      - name: Build 🎁
+        run: yarn build
+
+      - name: Run Tests 🧪
+        run: yarn test:e2e
